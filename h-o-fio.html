@@ -275,16 +275,17 @@
     var v = c.video;
     v.src = telaPequena ? v.getAttribute('data-leve') : v.getAttribute('data-alta');
     var marcaPronto = function () { c.pronto = !!(v.duration && isFinite(v.duration)); };
-    v.addEventListener('loadedmetadata', function () {
-      marcaPronto();
-      /* o rótulo diz a resolução REAL que o aparelho recebeu */
+    /* o rótulo diz a resolução REAL que este aparelho recebeu */
+    function atualizaEtiqueta() {
       var etiqueta = c.sec.querySelector('.quadro-hud .hd');
       if (etiqueta && v.videoWidth) {
         etiqueta.textContent = (v.videoWidth >= 1920 ? 'FULL HD ' : 'HD ') + v.videoWidth + '×' + v.videoHeight;
       }
-    });
-    v.addEventListener('loadeddata', marcaPronto);
-    if (v.readyState >= 1) marcaPronto();
+    }
+    function pronto() { marcaPronto(); atualizaEtiqueta(); }
+    v.addEventListener('loadedmetadata', pronto);
+    v.addEventListener('loadeddata', pronto);
+    if (v.readyState >= 1) pronto();
     v.load();
   });
 
