@@ -190,10 +190,33 @@
   /* ————— A TERRA (filmagem real da NASA, ISS) ————— */
   var terra=document.getElementById('terra'), atmosfera=document.querySelector('#espaco .atmosfera');
   var terraPronta=false;
-  var tela4k = Math.min(innerWidth,innerHeight)>=1000 && (devicePixelRatio||1)>=1.5;
   var telaPeq = Math.min(innerWidth,innerHeight)<700 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  terra.src = 'cena/terra' + (telaPeq ? '-m' : (tela4k ? '-4k' : '')) + '.mp4';
+  /* Começa sempre pela versão que abre rápido (o 4K tem 15 MB e deixaria a
+     abertura parada num quadro estático). Assim que ela roda, o 4K é buscado
+     em segundo plano e substitui — sem o usuário ver a troca. */
+  terra.src = 'cena/terra' + (telaPeq ? '-m' : '') + '.mp4';
   terra.addEventListener('loadedmetadata', function(){ terraPronta=!!(terra.duration&&isFinite(terra.duration)); });
+
+  var mereceQuatroK = !telaPeq && Math.min(innerWidth,innerHeight)>=900 &&
+                      !(navigator.connection && (navigator.connection.saveData ||
+                        /2g|3g/.test(navigator.connection.effectiveType||'')));
+  if(mereceQuatroK){
+    terra.addEventListener('canplaythrough', function trocaPor4k(){
+      terra.removeEventListener('canplaythrough', trocaPor4k);
+      var alta=document.createElement('video');
+      alta.preload='auto'; alta.muted=true; alta.playsInline=true; alta.src='cena/terra-4k.mp4';
+      alta.addEventListener('canplaythrough', function(){
+        var onde=terra.currentTime;              /* troca sem pulo no quadro */
+        terra.src='cena/terra-4k.mp4';
+        terra.addEventListener('loadeddata', function seek(){
+          terra.removeEventListener('loadeddata', seek);
+          try{ terra.currentTime=onde; }catch(e){}
+          terraPronta=true;
+        });
+      }, { once:true });
+      alta.load();
+    }, { once:true });
+  }
 
   function desenhaEspaco(t){
     /* t: 0 = órbita → 1 = dentro da atmosfera.
