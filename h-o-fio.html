@@ -55,6 +55,8 @@
   .cena .grude { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; align-items: center; }
   .cena video, .cena.foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .cena .veu { position: absolute; inset: 0; }
+  /* o poster (atributo poster) segura a imagem enquanto o vídeo carrega */
+  .cena video { background-size: cover; background-position: center; }
   /* Véu lateral: garante contraste do texto sobre qualquer quadro do vídeo
      (céu claro, areia, neve) sem escurecer a imagem toda. */
   .cena .grude::before {
@@ -145,9 +147,10 @@
   <!-- ————— CENA 01 · ÁGUA ————— -->
   <section class="cena" data-cena="0" data-cor="6,26,38" aria-label="Cena um — a água">
     <div class="grude">
-      <video data-scrub muted playsinline preload="auto" aria-label="Vídeo: caminhada sobre pedras até a cachoeira">
-        <source src="videos/cachoeira.mp4" type="video/mp4">
-      </video>
+      <video data-scrub muted playsinline webkit-playsinline preload="auto"
+             poster="videos/cachoeira-poster.jpg"
+             data-alta="videos/cachoeira.mp4" data-leve="videos/cachoeira-mobile.mp4"
+             aria-label="Vídeo: caminhada sobre pedras até a cachoeira"></video>
       <div class="veu" style="background:linear-gradient(180deg,rgba(6,10,18,.55),rgba(6,10,18,.15) 40%,rgba(6,10,18,.9))" aria-hidden="true"></div>
       <div class="larg conteudo">
         <p class="capitulo">Cena 01 · você conduz o filme</p>
@@ -175,9 +178,10 @@
   <!-- ————— CENA 02 · CAMPO ————— -->
   <section class="cena" data-cena="1" data-cor="8,26,16" aria-label="Cena dois — o campo">
     <div class="grude">
-      <video data-scrub muted playsinline preload="auto" aria-label="Vídeo: cobrança de pênalti em jogo amador">
-        <source src="videos/penalti.mp4" type="video/mp4">
-      </video>
+      <video data-scrub muted playsinline webkit-playsinline preload="auto"
+             poster="videos/penalti-poster.jpg"
+             data-alta="videos/penalti.mp4" data-leve="videos/penalti-mobile.mp4"
+             aria-label="Vídeo: cobrança de pênalti em jogo amador"></video>
       <div class="veu" style="background:linear-gradient(180deg,rgba(6,10,18,.5),rgba(6,10,18,.12) 40%,rgba(6,10,18,.92))" aria-hidden="true"></div>
       <div class="larg conteudo">
         <p class="capitulo">Cena 02 · só na Nauta</p>
@@ -239,13 +243,43 @@
     };
   });
 
-  /* Cada vídeo é rebobinado pelo scroll — só depois que os metadados chegam */
+  /* Qualidade por tela: celular recebe a versão leve (rede móvel + CPU menor).
+     O <video> não traz <source>: o src é escolhido aqui. */
+  var telaPequena = Math.min(innerWidth, innerHeight) < 700 ||
+                    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   cenas.forEach(function (c) {
     if (!c.video) return;
-    var marcaPronto = function () { c.pronto = !!(c.video.duration && isFinite(c.video.duration)); };
-    c.video.addEventListener('loadedmetadata', marcaPronto);
-    if (c.video.readyState >= 1) marcaPronto();
+    var v = c.video;
+    v.src = telaPequena ? v.getAttribute('data-leve') : v.getAttribute('data-alta');
+    var marcaPronto = function () { c.pronto = !!(v.duration && isFinite(v.duration)); };
+    v.addEventListener('loadedmetadata', marcaPronto);
+    v.addEventListener('loadeddata', marcaPronto);
+    if (v.readyState >= 1) marcaPronto();
+    v.load();
   });
+
+  /* [iOS] Safari no iPhone só busca o vídeo depois de um gesto do usuário — e
+     como aqui a gente nunca dá play (só rebobina), ele ficaria preto para
+     sempre. Este destravamento roda no primeiro toque/rolagem: um play()
+     mudo seguido de pause() basta para o Safari carregar os quadros. */
+  var destravado = false;
+  function destrava() {
+    if (destravado) return;
+    destravado = true;
+    cenas.forEach(function (c) {
+      if (!c.video) return;
+      var p = c.video.play();
+      if (p && p.then) {
+        p.then(function () { c.video.pause(); }).catch(function () {});
+      } else {
+        try { c.video.pause(); } catch (e) {}
+      }
+    });
+  }
+  ['touchstart', 'pointerdown', 'scroll', 'keydown'].forEach(function (ev) {
+    addEventListener(ev, destrava, { once: true, passive: true });
+  });
+  destrava();
 
   var mundo = $('#mundo');
   var marcas = $$('#regua .marca');
