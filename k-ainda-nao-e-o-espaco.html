@@ -25,7 +25,12 @@
   .mono { font-family:'Mono',ui-monospace,monospace; }
 
   #espaco { position:fixed; inset:0; z-index:0; }
-  #espaco canvas { width:100%; height:100%; }
+  #espaco video { width:100%; height:100%; object-fit:cover; will-change:transform; }
+  /* a atmosfera clareia e engole a tela na reentrada — emenda com o 1º plano */
+  #espaco .atmosfera { position:absolute; inset:0; opacity:0; pointer-events:none;
+    background:linear-gradient(180deg,rgba(96,158,224,.98),rgba(198,222,240,.98)); }
+  #espaco .credito { position:absolute; right:16px; bottom:7svh; font-size:10px; letter-spacing:.16em;
+    text-transform:uppercase; color:rgba(234,242,252,.5); }
   #sala { position:fixed; inset:0; z-index:1; opacity:0; }
   #sala .plano { position:absolute; inset:0; opacity:0; will-change:opacity,transform; }
   #sala .plano video { width:100%; height:100%; object-fit:cover; }
@@ -105,7 +110,11 @@
   }
 </style>
 
-<div id="espaco"><canvas id="globo"></canvas></div>
+<div id="espaco">
+  <video id="terra" muted playsinline webkit-playsinline preload="auto" poster="cena/terra.jpg"></video>
+  <span class="atmosfera"></span>
+  <p class="credito mono">Imagem: NASA · ISS Expedição 65</p>
+</div>
 <div id="sala"></div>
 <div id="barraCima"></div><div id="barraBaixo"></div>
 
@@ -150,7 +159,7 @@
   <div class="larg">
     <h1>Calma, no espaço AINDA não. Mas…</h1>
     <ol>
-      <li><b>Órbita —</b> a Terra vista de cima; a câmera mergulha no planeta.</li>
+      <li><b>Órbita —</b> a Terra vista da Estação Espacial (filmagem da NASA); a câmera mergulha no planeta.</li>
       <li><b>Paraquedas —</b> o salto do avião.</li>
       <li><b>Voo livre —</b> a vela cruzando a montanha.</li>
       <li><b>Kitesurf —</b> esporte aquático radical no mar aberto.</li>
@@ -178,90 +187,24 @@
 
   var ESPACO = 0.17;   /* fatia do scroll dedicada à abertura orbital */
 
-  /* ————— A TERRA (desenhada em tempo real) ————— */
-  var cv=document.getElementById('globo'), g=cv.getContext('2d');
-  var L=0,A=0,dpr=1;
-  function redim(){
-    dpr=Math.min(2,devicePixelRatio||1); L=innerWidth; A=innerHeight;
-    cv.width=Math.round(L*dpr); cv.height=Math.round(A*dpr);
-    cv.style.width=L+'px'; cv.style.height=A+'px';
-    g.setTransform(dpr,0,0,dpr,0,0);
-  }
-
-  /* continentes simplificados: manchas estáveis sobre a esfera */
-  var TERRAS=[[-0.30,-0.10,0.30,0.24],[-0.12,0.18,0.20,0.30],[0.20,-0.22,0.26,0.20],
-              [0.30,0.10,0.34,0.30],[0.52,-0.30,0.20,0.16],[-0.55,0.30,0.16,0.12],
-              [0.05,-0.45,0.30,0.14],[0.62,0.28,0.18,0.14]];
+  /* ————— A TERRA (filmagem real da NASA, ISS) ————— */
+  var terra=document.getElementById('terra'), atmosfera=document.querySelector('#espaco .atmosfera');
+  var terraPronta=false;
+  var tela4k = Math.min(innerWidth,innerHeight)>=1000 && (devicePixelRatio||1)>=1.5;
+  var telaPeq = Math.min(innerWidth,innerHeight)<700 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  terra.src = 'cena/terra' + (telaPeq ? '-m' : (tela4k ? '-4k' : '')) + '.mp4';
+  terra.addEventListener('loadedmetadata', function(){ terraPronta=!!(terra.duration&&isFinite(terra.duration)); });
 
   function desenhaEspaco(t){
-    /* t: 0 = longe (planeta pequeno) → 1 = dentro da atmosfera */
-    g.clearRect(0,0,L,A);
-    var fundo=g.createLinearGradient(0,0,0,A);
-    fundo.addColorStop(0,'#01030A'); fundo.addColorStop(1,'#04081A');
-    g.fillStyle=fundo; g.fillRect(0,0,L,A);
-
-    /* estrelas (somem conforme a atmosfera engrossa) */
-    var opEstrela=1-suave((t-0.45)/0.35);
-    if(opEstrela>0.01){
-      for(var i=0;i<170;i++){
-        var ex=r1(i*3.1)*L, ey=r1(i*7.7)*A, es=0.4+r1(i*5.3)*1.5;
-        g.fillStyle='rgba(255,255,255,'+(opEstrela*(0.25+r1(i*9.1)*0.7)).toFixed(3)+')';
-        g.beginPath(); g.arc(ex,ey,es,0,6.284); g.fill();
-      }
+    /* t: 0 = órbita → 1 = dentro da atmosfera.
+       O vídeo é rebobinado pelo scroll E a imagem avança (zoom para dentro
+       do planeta), como se a câmera caísse em direção à Terra. */
+    if(terraPronta){
+      var tt=trava(t,0,1)*(terra.duration-0.05);
+      if(Math.abs(tt-terra.currentTime)>0.02){ try{ terra.currentTime=tt; }catch(e){} }
     }
-
-    /* a Terra cresce até ultrapassar a tela */
-    var raio = Math.min(L,A) * mist(0.22, 3.2, Math.pow(t,1.7));
-    var cx=L*0.5, cy=A*(0.52+0.12*(1-t));
-
-    /* halo de atmosfera */
-    var halo=g.createRadialGradient(cx,cy,raio*0.94,cx,cy,raio*1.28);
-    halo.addColorStop(0,'rgba(96,182,255,.55)');
-    halo.addColorStop(1,'rgba(96,182,255,0)');
-    g.fillStyle=halo; g.beginPath(); g.arc(cx,cy,raio*1.3,0,6.284); g.fill();
-
-    /* oceano */
-    var oce=g.createRadialGradient(cx-raio*0.32,cy-raio*0.34,raio*0.06,cx,cy,raio);
-    oce.addColorStop(0,'#3E92E0'); oce.addColorStop(0.55,'#1A5FB0'); oce.addColorStop(1,'#0A2A56');
-    g.fillStyle=oce; g.beginPath(); g.arc(cx,cy,raio,0,6.284); g.fill();
-
-    /* continentes (recortados na esfera) */
-    g.save(); g.beginPath(); g.arc(cx,cy,raio,0,6.284); g.clip();
-    /* perto do fim os continentes perdem definição, como na reentrada real */
-    var nitidez=1-suave((t-0.40)/0.30);
-    TERRAS.forEach(function(c,i){
-      g.fillStyle=i%2?'rgba(58,122,72,'+(0.95*nitidez).toFixed(3)+')':'rgba(72,138,84,'+(0.95*nitidez).toFixed(3)+')';
-      g.beginPath();
-      g.ellipse(cx+c[0]*raio, cy+c[1]*raio, c[2]*raio, c[3]*raio, r1(i)*3, 0, 6.284);
-      g.fill();
-    });
-    /* nuvens em faixas */
-    for(var k=0;k<10;k++){
-      var ny=cy+(-0.85+k*0.19)*raio;
-      g.fillStyle='rgba(255,255,255,'+(0.10+r1(k*4.4)*0.16).toFixed(3)+')';
-      g.beginPath();
-      g.ellipse(cx+(r1(k*6.2)-0.5)*raio*0.8, ny, raio*(0.35+r1(k*2.2)*0.4), raio*0.055, 0,0,6.284);
-      g.fill();
-    }
-    /* terminador: o lado da noite */
-    var noite=g.createLinearGradient(cx+raio*0.1,cy-raio,cx+raio,cy+raio);
-    noite.addColorStop(0,'rgba(2,6,18,0)'); noite.addColorStop(1,'rgba(2,6,18,.88)');
-    g.fillStyle=noite; g.beginPath(); g.arc(cx,cy,raio,0,6.284); g.fill();
-    g.restore();
-
-    /* brilho do limbo iluminado */
-    g.strokeStyle='rgba(160,214,255,'+(0.5*(1-suave((t-0.6)/0.3))).toFixed(3)+')';
-    g.lineWidth=Math.max(1,raio*0.012);
-    g.beginPath(); g.arc(cx,cy,raio,Math.PI*1.05,Math.PI*1.95); g.stroke();
-
-    /* a atmosfera toma a tela no fim (emenda com o primeiro vídeo) */
-    var ceu=suave((t-0.46)/0.42);
-    if(ceu>0.01){
-      var ga=g.createLinearGradient(0,0,0,A);
-      ga.addColorStop(0,'rgba(96,158,224,'+(ceu*0.95).toFixed(3)+')');
-      ga.addColorStop(1,'rgba(198,222,240,'+(ceu*0.95).toFixed(3)+')');
-      g.fillStyle=ga; g.fillRect(0,0,L,A);
-    }
+    terra.style.transform='scale('+(1+Math.pow(trava(t,0,1),1.7)*1.9).toFixed(4)+')';
+    atmosfera.style.opacity=suave((t-0.52)/0.40).toFixed(3);
   }
 
   /* ————— OS PLANOS (vídeo real) ————— */
@@ -297,7 +240,8 @@
   var destravado=false;
   function destrava(){
     if(destravado) return; destravado=true;
-    PLANOS.forEach(function(pl){ var pr=pl.v.play(); if(pr&&pr.then) pr.then(function(){ pl.v.pause(); }).catch(function(){}); });
+    var todos=PLANOS.map(function(pl){ return pl.v; }); todos.push(terra);
+    todos.forEach(function(v){ var pr=v.play(); if(pr&&pr.then) pr.then(function(){ v.pause(); }).catch(function(){}); });
   }
   ['touchstart','pointerdown','scroll','keydown'].forEach(function(e){ addEventListener(e,destrava,{once:true,passive:true}); });
   destrava();
@@ -353,7 +297,7 @@
       hudPlano.textContent=PLANOS[atual].nome.toLowerCase()+' · '+(atual+1)+'/'+N;
       var v=PLANOS[atual].v;
       if(v.videoWidth) hudRes.textContent=(v.videoWidth>=1280?'HD ':'')+v.videoWidth+'×'+v.videoHeight;
-    } else { hudRes.textContent='ÓRBITA'; }
+    } else { hudRes.textContent = terra.videoWidth>=3840?'4K 3840×2160':(terra.videoWidth?('HD '+terra.videoWidth+'×'+terra.videoHeight):'ÓRBITA'); }
     var fim=p>0.965;
     chegada.classList.toggle('no-ar',fim);
     legendas.style.opacity=fim?'0':'1';
