@@ -90,6 +90,29 @@
   .ponte p.viu { opacity: 1; transform: none; }
   .ponte .eco { color: var(--cta); }
 
+
+  /* ————— Ajustes de celular ————— */
+  @media (max-width: 720px) {
+    /* a régua lateral atravessava o texto: no celular ela vira uma tira fina
+       no alto, sem disputar espaço com a leitura */
+    #regua {
+      top: 62px; right: auto; left: 0; transform: none; width: 100%;
+      flex-direction: row; justify-content: center; gap: 14px;
+      padding: 0 16px;
+    }
+    #regua .marca { font-size: 9.5px; letter-spacing: .12em; gap: 5px; }
+    #regua .marca i { width: 12px; }
+    #regua .marca.ativa i { width: 20px; }
+    .cena h2 { font-size: clamp(30px, 8.4vw, 44px); }
+    .cena .falas { height: 108px; }
+    .cena .falas p { font-size: 16px; }
+    .quadro-hud { left: 14px; right: 14px; bottom: 14px; gap: 8px; font-size: 10px; }
+    .quadro-hud .barra { width: auto; flex: 1; }
+    .quadro-hud .hd { white-space: nowrap; padding: 3px 6px; font-size: 9.5px; }
+    .role { display: none; }
+    #zap { width: 50px; height: 50px; }
+  }
+
   /* ————— Chegada ————— */
   #chegada { position: relative; padding: 18svh 0 16svh; text-align: center; }
   #chegada h2 { font-size: clamp(36px, 6.4vw, 74px); font-weight: 700; line-height: .98; letter-spacing: -.025em; text-wrap: balance; max-width: 16ch; margin-inline: auto; }
@@ -252,7 +275,14 @@
     var v = c.video;
     v.src = telaPequena ? v.getAttribute('data-leve') : v.getAttribute('data-alta');
     var marcaPronto = function () { c.pronto = !!(v.duration && isFinite(v.duration)); };
-    v.addEventListener('loadedmetadata', marcaPronto);
+    v.addEventListener('loadedmetadata', function () {
+      marcaPronto();
+      /* o rótulo diz a resolução REAL que o aparelho recebeu */
+      var etiqueta = c.sec.querySelector('.quadro-hud .hd');
+      if (etiqueta && v.videoWidth) {
+        etiqueta.textContent = (v.videoWidth >= 1920 ? 'FULL HD ' : 'HD ') + v.videoWidth + '×' + v.videoHeight;
+      }
+    });
     v.addEventListener('loadeddata', marcaPronto);
     if (v.readyState >= 1) marcaPronto();
     v.load();
