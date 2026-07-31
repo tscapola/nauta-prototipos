@@ -111,7 +111,7 @@
 </style>
 
 <div id="espaco">
-  <video id="terra" muted playsinline webkit-playsinline preload="auto" poster="cena/terra.jpg"></video>
+  <video id="terra" muted loop autoplay playsinline webkit-playsinline preload="auto" poster="cena/terra.jpg"></video>
   <span class="atmosfera"></span>
   <p class="credito mono">Imagem: NASA · ISS Expedição 65</p>
 </div>
@@ -206,28 +206,30 @@
       var alta=document.createElement('video');
       alta.preload='auto'; alta.muted=true; alta.playsInline=true; alta.src='cena/terra-4k.mp4';
       alta.addEventListener('canplaythrough', function(){
-        var onde=terra.currentTime;              /* troca sem pulo no quadro */
+        var onde=terra.currentTime;
         terra.src='cena/terra-4k.mp4';
-        terra.addEventListener('loadeddata', function seek(){
-          terra.removeEventListener('loadeddata', seek);
-          try{ terra.currentTime=onde; }catch(e){}
+        terra.addEventListener('loadeddata', function retoma(){
+          terra.removeEventListener('loadeddata', retoma);
+          try{ terra.currentTime=onde; }catch(e){}   /* uma vez só, na troca */
           terraPronta=true;
+          var pr=terra.play(); if(pr&&pr.catch) pr.catch(function(){});
         });
       }, { once:true });
       alta.load();
     }, { once:true });
   }
 
+  /* A Terra TOCA sozinha (a deriva orbital já é lenta e contínua) e o scroll
+     comanda apenas o zoom. Rebobinar vídeo quadro a quadro obriga o navegador
+     a decodificar um quadro-chave a cada movimento — era isso que travava a
+     aproximação. Sem seek, o zoom fica liso; e como a escala é função pura do
+     scroll, subir a página continua desfazendo o mergulho. */
+  terra.loop=true;
   function desenhaEspaco(t){
-    /* t: 0 = órbita → 1 = dentro da atmosfera.
-       O vídeo é rebobinado pelo scroll E a imagem avança (zoom para dentro
-       do planeta), como se a câmera caísse em direção à Terra. */
-    if(terraPronta){
-      var tt=trava(t,0,1)*(terra.duration-0.05);
-      if(Math.abs(tt-terra.currentTime)>0.02){ try{ terra.currentTime=tt; }catch(e){} }
-    }
-    terra.style.transform='scale('+(1+Math.pow(trava(t,0,1),1.7)*1.9).toFixed(4)+')';
+    var z=1+Math.pow(trava(t,0,1),1.7)*1.9;
+    terra.style.transform='translate3d(0,0,0) scale('+z.toFixed(4)+')';
     atmosfera.style.opacity=suave((t-0.52)/0.40).toFixed(3);
+    if(terraPronta && terra.paused && t<0.99){ var pr=terra.play(); if(pr&&pr.catch) pr.catch(function(){}); }
   }
 
   /* ————— OS PLANOS (vídeo real) ————— */
@@ -306,12 +308,12 @@
         vis=suave(ent); esc=1.10-0.10*suave(ent); desl=(1-suave(ent))*3;
       }
       pl.el.style.opacity=vis.toFixed(3);
-      pl.el.style.transform='scale('+esc.toFixed(4)+') translateY('+desl.toFixed(2)+'px)';
+      pl.el.style.transform='translate3d(0,'+desl.toFixed(2)+'px,0) scale('+esc.toFixed(4)+')';
       pl.marca.classList.toggle('ativa', i===atual && p>ESPACO);
       pl.legenda.classList.toggle('no-ar', i===atual && p>ESPACO && p<0.965);
       if(vis>0.01&&pl.pronto){
         var tt=trava(dentro,0,1)*(pl.v.duration-0.05);
-        if(Math.abs(tt-pl.v.currentTime)>0.02){ try{ pl.v.currentTime=tt; }catch(e){} }
+        if(Math.abs(tt-pl.v.currentTime)>0.045){ try{ pl.v.currentTime=tt; }catch(e){} }
       }
     });
 
